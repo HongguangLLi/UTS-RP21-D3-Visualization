@@ -18,6 +18,9 @@ Open the code in Visual studio and download live server from expansion.
 ![image](https://user-images.githubusercontent.com/88301023/138031936-fa4da67c-6588-4e3d-9e42-ba0896b35e33.png)
 
 # Results
+Streamgraph
 ![1634706834(1)](https://user-images.githubusercontent.com/88301023/138032099-435a2294-42d0-4433-911d-e15a98927b12.png)
+Number of Journals and articles ranks published by 12 University according to core ranking
 ![1634706838(1)](https://user-images.githubusercontent.com/88301023/138032109-165faba7-c04c-4ca0-8522-a7ea41933d80.png)
+Bar chart race shows the total amount of the journals and articles published by the 12 universities from year 2000 to 2021.
 ![1634706843(1)](https://user-images.githubusercontent.com/88301023/138032128-411cb8a6-d8fc-41dd-a953-bf44ad6defb4.png)
