@@ -3,7 +3,7 @@ Deliverable of UTS 32933 Research Project spring 2021
 
 supervisor: Dr. Wei Liu
 
-Group memebers:
+Group members:
 Hongguang Li 99153520
 Hongkun Zhan 13057144     
 Yue Yin 13833999
