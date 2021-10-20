@@ -1,0 +1,492 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Document</title>
+    <script src="https://d3js.org/d3.v6.min.js"></script>
+</head>
+
+<body>
+    <div id="container"></div>
+    <div id="menue">
+
+        <div style="position: absolute;top: 890px;left: 30px;display: flex;align-items: center;">
+            <button id="replay">replay</button>
+            <input type="range" min="2000" max="2021" value="2000" id="bar_race">
+        </div>
+        <select name="" id="select" style="position: absolute;top: 20px;left: 1100px;width: 100px;">
+            <option value="all">All</option>
+            <option value="a_plus">A*</option>
+            <option value="a">A</option>
+            <option value="b">B</option>
+            <option value="c">C</option>
+        </select>
+        <div style="position: absolute;top: 50px;left: 1100px;display: flex;align-items: center;">
+            <button id="replay1">replay</button>
+            <input type="range" min="2000" max="2021" value="2000" id="scatter">
+        </div>
+    </div>
+
+    <script>
+
+        let keys = ["Australian National University", "University of Sydney", "University of Melbourne", "University of New South Wales", "University of Queensland", "Monash University", "University of Western Australia", "University of Adelaide", "University of Wollongong", "University of Newcastle", "Macquarie University", "University of Technology Sydney"]
+        let color = d3.scaleOrdinal()
+            .domain(keys)
+            .range(d3.schemeCategory10);
+        d3.json("ndata.json").then(res => {
+            let data = d3.groups(res.filter(d => parseInt(d.year) >= 2000), d => d.year, d => d.institution).sort((i, j) => parseInt(i) - parseInt(j));
+            streamChart(data);
+            barChart(data);
+            scatter(data);
+        });
+
+
+
+        //河流图
+        function streamChart(data) {
+            let svg = d3.select("#container")
+                .append("svg")
+                .attr("width", 1050)
+                .attr("height", 480);
+            let stream = data.map(d => {
+                let obj = {};
+                obj.date = d[0];
+                d[1].forEach(item => {
+                    obj[item[0]] = item[1].length;
+                });
+                return obj;
+            });
+            let margin = ({ top: 0, right: 20, bottom: 30, left: 20 });
+            let width = 1000;
+            let height = 400;
+            let series = d3.stack()
+                .keys(keys)
+                .offset(d3.stackOffsetWiggle)
+                .order(d3.stackOrderInsideOut)
+                (stream);
+            let area = d3.area()
+                .x(d => x(new Date(d.data.date)))
+                .y0(d => y(d[0]))
+                .y1(d => y(d[1]));
+
+            let x = d3.scaleUtc()
+                .domain([new Date("2000-01-01"), new Date("2021-01-01")])
+                .range([margin.left, width - margin.right]);
+            let y = d3.scaleLinear()
+                .domain([d3.min(series, d => d3.min(d, d => d[0])), d3.max(series, d => d3.max(d, d => d[1]))])
+                .range([height - margin.bottom, margin.top])
+            svg.append("g")
+                .attr("transform", "translate(0,80)")
+                .selectAll("path")
+                .data(series)
+                .join("path")
+                .attr("fill", ({ key }) => color(key))
+                .attr("d", area)
+                .append("title")
+                .text(({ key }) => key);
+            let xAxis = g => g
+                .attr("transform", `translate(0,${height - margin.bottom + 80})`)
+                .call(d3.axisBottom(x).tickSizeOuter(0))
+                .call(g => g.select(".domain").remove());
+            svg.append("g")
+                .call(xAxis);
+            // 图示
+            let legends = svg.append("g")
+                .selectAll("g")
+                .data(keys)
+                .enter()
+                .append("g")
+                .attr("transform", (d, i) => {
+                    return `translate(${(i % 6) * 165 + margin.left},${parseInt(i / 6) * 25})`
+                })
+            legends.append("rect")
+                .attr("x", 0)
+                .attr("y", 0)
+                .attr("width", 15)
+                .attr("height", 15)
+                .attr("fill", (d) => color(d));
+            legends.append("text")
+                .attr("font-size", "10px")
+                .attr("x", 18)
+                .attr("y", 12)
+                .text(d => d)
+        }
+        //动态的柱状图
+        function barChart(data) {
+            // 算累计
+            let tdata = [];
+            data.reduce((pre, cur, index) => {
+                tdata[index] = [cur[0]];
+                let t = {};
+                cur[1].forEach(d => {
+                    if (index == 0) {
+                        t[d[0]] = d[1].length;
+                    } else {
+                        t[d[0]] = d[1].length + pre[d[0]];
+                    }
+                })
+                tdata[index] = [cur[0], Object.entries(t)];
+                return t;
+            }, {})
+
+            let keyframes = tdata.map(d => {
+                let key = [d[0]];
+                d[1].sort((a, b) => b[1] - a[1]);
+                key[1] = d[1].map((it, index) => {
+                    return {
+                        name: it[0],
+                        value: it[1],
+                        rank: index
+                    }
+                })
+                return key;
+            });
+            //xy 
+            let width = 1000;
+            let height = 500;
+            let margin = ({ top: 16, right: 20, bottom: 6, left: 20 });
+            let x = d3.scaleLinear([0, 1], [margin.left, width - margin.right]);
+            let y = d3.scaleBand()
+                .domain(d3.range(12))
+                .rangeRound([margin.top, margin.top + 30 * (12 + 0.1)])
+                .padding(0.1)
+            //一帧
+            let svg = d3.select("#container")
+                .append("svg")
+                .attr("width", 1000)
+                .attr("height", 400);
+            const updateBars = bars(svg);
+            const updateLabels = labels(svg);
+            const updateAxis = axis(svg);
+            const updateTicker = ticker(svg);
+
+            let nameframes = d3.groups(keyframes.flatMap(([, data]) => data), d => d.name)
+            let prev = new Map(nameframes.flatMap(([, data]) => d3.pairs(data, (a, b) => [b, a])));
+
+            document.getElementById("bar_race").addEventListener("input", function (e) {
+                updateAll(e.target.value - "2000")
+            })
+            // click evetn listener
+            let playing = 1;
+            document.getElementById("replay").addEventListener("click", async function () {
+                if(playing === 2){
+                    playing = 1;
+                    updateAll(0);
+                }else{
+                    playing = 0;
+                }
+            });
+            updateAll(0);
+            //play
+            async function updateAll(i) {
+                if (i >= keyframes.length) {
+                    playing = 2;
+                    return
+                }
+                let keyframe = keyframes[i];
+                const transition = svg.transition()
+                    .duration(1000)
+                    .ease(d3.easeLinear);
+                x.domain([0, keyframe[1][0].value]);
+                updateAxis(keyframe, transition);
+                updateBars(keyframe, transition);
+                updateLabels(keyframe, transition);
+                updateTicker(keyframe, transition);
+                if (playing === 0) {
+                    playing = 1;
+                    updateAll(0);
+                } else {
+                    await transition.end();
+                    updateAll(i + 1);
+                }
+
+            }
+            function bars(svg) {
+                let bar = svg.append("g")
+                    .attr("fill-opacity", 0.9)
+                    .selectAll("rect");
+                return ([date, data], transition1) => {
+                    bar = bar
+                        .data(data, d => d.name)
+                        .join(
+                            enter => enter.append("rect")
+                                .attr("fill", (d) => color(d.name))
+                                .attr("height", y.bandwidth())
+                                .attr("x", x(0))
+                                .attr("y", d => {
+                                    y(d.rank)
+                                })
+                                .attr("width", d => x(d.value) - x(0)),
+                            update => update,
+                            null)
+                        .call(bar => bar.transition(transition1)
+                            .attr("y", d => y(d.rank))
+                            .attr("width", d => x(d.value) - x(0)));
+                }
+            }
+            function labels(svg) {
+                let label = svg.append("g")
+                    .attr("font-size", "11px")
+                    .attr("font-weight", "600")
+                    .attr("text-anchor", "end")
+                    .selectAll("text");
+
+                return ([date, data], transition) => label = label
+                    .data(data, d => d.name)
+                    .join(
+                        enter => enter.append("text")
+                            .attr("transform", d => `translate(${x((prev.get(d) || d).value)},${y((prev.get(d) || d).rank)})`)
+                            .attr("y", y.bandwidth() / 2)
+                            .attr("x", -6)
+                            .attr("dy", "-0.25em")
+                            .text(d => d.name)
+                            .call(text => text.append("tspan")
+                                .attr("fill-opacity", 0.7)
+                                .attr("font-weight", "normal")
+                                .attr("x", -6)
+                                .attr("dy", "1.15em")),
+                        update => update,
+                        exit => exit.transition(transition).remove()
+                            .attr("transform", d => `translate(${x((next.get(d) || d).value)},${y((next.get(d) || d).rank)})`)
+                            .call(g => g.select("tspan").tween("text", d => textTween(d.value, (next.get(d) || d).value)))
+                    )
+                    .call(bar => bar.transition(transition)
+                        .attr("transform", d => `translate(${x(d.value)},${y(d.rank)})`)
+                        .call(g => g.select("tspan").tween("text", d => textTween((prev.get(d) || d).value, d.value))));
+            }
+            function textTween(a, b) {
+                const i = d3.interpolateNumber(a, b);
+                return function (t) {
+                    this.textContent = i(t).toFixed(0);
+                };
+            }
+            function axis(svg) {
+                const g = svg.append("g")
+                    .attr("transform", `translate(0,${margin.top})`);
+
+                const axis = d3.axisTop(x)
+                    .ticks(width / 160, null)
+                    .tickSizeOuter(0)
+                    .tickSizeInner(-357);
+
+                return (_, transition) => {
+                    g.transition(transition).call(axis);
+                    g.select(".tick:first-of-type text").remove();
+                    g.selectAll(".tick:not(:first-of-type) line").attr("stroke", "white");
+                    g.select(".domain").remove();
+                };
+            }
+            function ticker(svg) {
+                const now = svg.append("text")
+                    .attr("text-anchor", "end")
+                    .attr("font-size", "30px")
+                    .attr("font-weight", 600)
+                    .attr("x", width - 6)
+                    .attr("y", 350)
+                    .attr("dy", "0.32em")
+                    .text(keyframes[0][0]);
+                return ([date], transition) => {
+                    now.text(date);
+                    document.getElementById("bar_race").value = date;
+                };
+            }
+        }
+        //动态散点图
+        async function scatter(data) {
+            let keyframes = data.map(d => {
+                let obj = {};
+                obj.date = d[0];
+                d[1].forEach(item => {
+                    let a_plus = 0, a = 0, b = 0, c = 0;
+                    item[1].forEach(d => {
+                        if (d.level === "A*") {
+                            a_plus += 1;
+                        } else if (d.level === "A") {
+                            a += 1;
+                        } else if (d.level === "B") {
+                            b += 1;
+                        } else if (d.level === "C") {
+                            c += 1;
+                        }
+                    })
+                    obj[item[0]] = {
+                        "all": item[1].length,
+                        a_plus,
+                        a,
+                        b,
+                        c
+                    };
+                });
+                return obj;
+            });
+            keyframes.reduce((pre, cur, index) => {
+                if (index === 0) {
+                    return cur;
+                } else {
+                    for (let i in cur) {
+                        if (i === "date") {
+                            continue
+                        }
+                        for (let j in cur[i]) {
+                            cur[i][j] += pre[i][j];
+                        }
+                    }
+                    return cur;
+                }
+            }, {})
+            let svg = d3.select("#container")
+                .append("svg")
+                .attr("width", 700)
+                .attr("height", 400)
+                .attr("style", "position:absolute;left:1100px;top:10px");
+            svg.append("g")
+                .selectAll("line")
+                .data(new Array(6))
+                .enter()
+                .append("line")
+                .attr("x1", (d, i) => i * 100 + 200)
+                .attr("x2", (d, i) => i * 100 + 200)
+                .attr("y1", (d, i) => 0)
+                .attr("y2", (d, i) => 400)
+                .attr("stroke", "#ddd");
+            svg.append("g")
+                .selectAll("line")
+                .data(new Array(5))
+                .enter()
+                .append("line")
+                .attr("x1", (d, i) => 200)
+                .attr("x2", (d, i) => 700)
+                .attr("y1", (d, i) => i * 100)
+                .attr("y2", (d, i) => i * 100)
+                .attr("stroke", "#ddd");
+            let selectedKey = "a";
+            const updateCircles = circles(svg);
+            let playing = 1;
+            updateAll(0);
+
+            document.getElementById("scatter").addEventListener("input", function (e) {
+                updateAll(e.target.value - "2000")
+            });
+            document.getElementById("replay1").addEventListener("click", function () {
+                console.log({playing})
+                if(playing === 2){
+                    playing = 1;
+                    updateAll(0);
+                }else{
+                    playing = 0;
+                }
+            });
+            document.getElementById("select").addEventListener("change", function (e) {
+                selectedKey = e.target.value;
+            })
+            async function updateAll(i) {
+                if (i >= keyframes.length) {
+                    playing = 2;
+                    return;
+                }
+                let keyframe = keyframes[i];
+                const transition = svg.transition()
+                    .duration(1000)
+                    .ease(d3.easeLinear);
+                updateCircles(keyframe, transition);
+                if (playing === 0) {
+                    playing = 1;
+                    updateAll(0)
+                } else {
+                    await transition.end();
+                    updateAll(i + 1);
+                }
+
+            }
+            function circles(svg) {
+                let circles = svg.append("g")
+                    .attr("fill-opacity", 0.9)
+                    .selectAll("circle");
+                let simulation = d3.forceSimulation()
+                    .force("charge", d3.forceManyBody())
+                    .force("center", d3.forceCenter(450, 200))
+                    .on("tick", function () {
+                        circles
+                            .attr("cx", d => d.x)
+                            .attr("cy", d => d.y);
+                        texts.attr("x", d => d.x)
+                            .attr("y", d => d.y)
+                    });
+                let texts = svg.append("g")
+                    .selectAll("text");
+                let year = svg.append("text")
+                    .attr("x", 620)
+                    .attr("y", 395)
+                    .attr("font-size", "30px")
+                    .attr("font-weight", 600)
+                    .text(2000)
+                let flag = true;
+                let data = [];
+                return (obj, transition) => {
+                    let date = obj.date;
+                    let max = 0;
+                    if (data.length === 0) {
+                        for (let i in obj) {
+                            if (i === "date") {
+                                continue
+                            }
+                            if (max < obj[i][selectedKey]) {
+                                max = obj[i][selectedKey];
+                            }
+                            data.push({ "id": i, "value": obj[i][selectedKey] });
+                        }
+                    } else {
+                        data.forEach(d => {
+                            if (max < obj[d.id][selectedKey]) {
+                                max = obj[d.id][selectedKey];
+                            }
+                            d.value = obj[d.id][selectedKey];
+                        })
+                    }
+                    let scale = d3.scaleSqrt()
+                        .domain([0, max])
+                        .range([1, 30]);
+                    if (flag) {
+                        simulation.nodes(data)
+                            .restart()
+                        flag = false;
+                    }
+                    year.text(date);
+                    document.getElementById("scatter").value = date;
+                    circles = circles
+                        .data(data)
+                        .join(
+                            enter => enter.append("circle")
+                                .attr("fill", (d) => color(d.id))
+                                .attr("r", d => scale(d.value))
+                                .call(bar => bar.append("title")
+                                    .text(d => d.id))
+                            ,
+                            update => update,
+                            null)
+                        .call(bar => bar.transition(transition)
+                            .attr("r", d => scale(d.value)))
+
+                    texts = texts
+                        .data(data)
+                        .join(
+                            enter => enter.append("text")
+                                .attr("style","dominant-baseline:middle;text-anchor:middle")
+                                .attr("font-size","12px")
+                                .text(d => d.value),
+                            update => update,
+                            null
+                        )
+                        .call(text => text.transition(transition).text(d => d.value))
+                }
+            }
+        }
+
+
+    </script>
+</body>
+
+</html>
